@@ -1,0 +1,80 @@
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#define PORTNO 10200
+#define MAX_SIZE 256
+
+void sort_array(int *arr, int n) {
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = 0; j < n - i - 1; j++) {
+            if (arr[j] > arr[j + 1]) {
+                // Swap
+                int temp = arr[j];
+                arr[j] = arr[j + 1];
+                arr[j + 1] = temp;
+            }
+        }
+    }
+} 
+
+int main() {
+    int sockfd, newsockfd, portno, clilen;
+    char buf[MAX_SIZE];
+    struct sockaddr_in seraddr, cliaddr;
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        perror("ERROR opening socket");
+        exit(1);
+    }
+
+    seraddr.sin_family = AF_INET;
+    seraddr.sin_addr.s_addr = INADDR_ANY; // Accept connections on any interface
+    seraddr.sin_port = htons(PORTNO);
+
+    if (bind(sockfd, (struct sockaddr *)&seraddr, sizeof(seraddr)) < 0) {
+        perror("ERROR on binding");
+        exit(1);
+    }
+
+    listen(sockfd, 5);
+    printf("Server is waiting for connections...\n");
+
+    while (1) {
+        clilen = sizeof(cliaddr);
+        newsockfd = accept(sockfd, (struct sockaddr *)&cliaddr, &clilen);
+        if (newsockfd < 0) {
+            perror("ERROR on accept");
+            continue;
+        }
+
+        if (fork() == 0) {
+            close(sockfd); // Close the listening socket in the child process
+
+            int n;
+            read(newsockfd, &n, sizeof(n));
+
+            int arr[MAX_SIZE];
+            read(newsockfd, arr, n * sizeof(int));
+
+            sort_array(arr, n);
+
+            write(newsockfd, arr, n * sizeof(int));
+
+            int pid = getpid();
+            write(newsockfd, &pid, sizeof(pid));
+
+            close(newsockfd);
+            exit(0);
+        } else {
+            close(newsockfd); // Close the socket in the parent process
+        }
+    }
+
+    return 0;
+}

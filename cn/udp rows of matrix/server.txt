@@ -1,0 +1,60 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <string.h>
+
+#define PORT 9704
+#define MAX 256
+#define ROWS 3  // Number of rows expected
+
+int main() {
+    int sockid, len, row_count = 0;
+    struct sockaddr_in seraddr, cliaddr;
+    char buf[MAX];
+    char matrix[ROWS][MAX];  // To store the rows of the matrix
+
+    sockid = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockid < 0) {
+        perror("Server: Socket creation failed");
+        exit(1);
+    }
+
+    seraddr.sin_family = AF_INET;
+    seraddr.sin_addr.s_addr = inet_addr("172.16.56.10");  // Replace with your IP
+    seraddr.sin_port = htons(PORT);
+
+    if (bind(sockid, (struct sockaddr *)&seraddr, sizeof(seraddr)) < 0) {
+        perror("Server: Bind failed");
+        close(sockid);
+        exit(1);
+    }
+
+    len = sizeof(cliaddr);
+
+    while (row_count < ROWS) {
+        memset(buf, 0, MAX);
+        int m = recvfrom(sockid, buf, MAX, 0, (struct sockaddr *)&cliaddr, &len);
+        if (m < 0) {
+            perror("Server: Receive failed");
+            exit(1);
+        }
+        printf("Received row %d: %s\n", row_count + 1, buf);
+        strcpy(matrix[row_count], buf);
+        row_count++;
+    }
+
+    printf("Complete matrix received:\n");
+    for (int i = 0; i < ROWS; i++) {
+        printf("%s\n", matrix[i]);
+    }
+
+    char ack[] = "Matrix received successfully.";
+    sendto(sockid, ack, sizeof(ack), 0, (struct sockaddr *)&cliaddr, len);
+
+    close(sockid);
+    return 0;
+}
